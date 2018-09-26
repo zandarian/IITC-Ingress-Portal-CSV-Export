@@ -1,12 +1,12 @@
 // ==UserScript==
 // @id iitc-plugin-ingressportalcsvexport@zetaphor
-// @name IITC Plugin: Ingress Portal CSV Export
+// @name IITC Plugin: Ingress Portal Exporter
 // @category Information
-// @version 0.0.1
+// @version 0.0.2
 // @namespace http://github.com/Zetaphor/IITC-Ingress-Portal-CSV-Export
 // @updateURL http://github.com/Zetaphor/IITC-Ingress-Portal-CSV-Export/raw/master/ingress_export.js
 // @downloadURL http://github.com/Zetaphor/IITC-Ingress-Portal-CSV-Export/raw/master/ingress_export.js
-// @description Exports portals to a CSV list
+// @description Exports portals to CSV, KML, and XML
 // @include https://www.ingress.com/intel*
 // @include http://www.ingress.com/intel*
 // @include https://ingress.com/intel*
@@ -27,8 +27,8 @@ function wrapper() {
     }
 
     // base context for plugin
-    window.plugin.portal_csv_export = function() {};
-    var self = window.plugin.portal_csv_export;
+    window.plugin.portal_export = function() {};
+    var self = window.plugin.portal_export;
 
     window.master_portal_list = {};
     window.portal_scraper_enabled = false;
@@ -76,12 +76,10 @@ function wrapper() {
 
     self.portalInDrawnItems = function(portal) {
         var c = false;
-
         window.plugin.drawTools.drawnItems.eachLayer(function(layer) {
             if (!(self.portalInForm(layer) || self.portalInGeo(layer))) {
                 return false;
             }
-
             if (self.portalInPolygon(layer, portal)) {
                 c = true;
             }
@@ -97,115 +95,115 @@ function wrapper() {
         }
     };
 
-    self.genStr = function genStr(title, image, lat, lng, portalGuid) {
-        var href = lat + "," + lng;
-        var str= "";
-        str = title;
-        str = str.replace(/\"/g, "\\\"");
-        str = str.replace(";", " ");
-        str = str + ", " + href + ", " + image;
-        if (window.plugin.keys && (typeof window.portals[portalGuid] !== "undefined")) {
-            var keyCount =window.plugin.keys.keys[portalGuid] || 0;
-            str = str + ";" + keyCount;
-        }
-        return str;
-    };
-
-    self.genStrFromPortal = function genStrFromPortal(portal, portalGuid) {
-        var lat = portal._latlng.lat,
-            lng = portal._latlng.lng,
-            title = portal.options.data.title || "untitled portal";
-            image = portal.options.data.image || ""
-
-        return self.genStr(title, image, lat, lng, portalGuid);
-    };
-
-    self.addPortalToExportList = function(portalStr, portalGuid) {
-        if (typeof window.master_portal_list[portalGuid] == 'undefined') {
-            window.master_portal_list[portalGuid] = portalStr;
-            self.updateTotalScrapedCount()
-        }
-    };
-
     self.updateTotalScrapedCount = function() {
         $('#totalScrapedPortals').html(Object.keys(window.master_portal_list).length);
     };
 
     self.drawRectangle = function() {
         var bounds = window.map.getBounds();
-        var bounds = [[bounds._southWest.lat, bounds._southWest.lng], [bounds._northEast.lat, bounds._northEast.lng]];
-        L.rectangle(bounds, {color: "#00ff11", weight: 1, opacity: 0.9}).addTo(window.map);
+        var boundsNew = [[bounds._southWest.lat, bounds._southWest.lng], [bounds._northEast.lat, bounds._northEast.lng]];
+        L.rectangle(boundsNew, {color: "#00ff11", weight: 1, opacity: 0.9}).addTo(window.map);
     };
 
-    self.managePortals = function managePortals(obj, portal, x) {
+    self.managePortals = function managePortals(portal, portalGuid) {
         if (self.inBounds(portal)) {
-            var str = self.genStrFromPortal(portal, x);
-            obj.list.push(str);
-            obj.count += 1;
-            self.addPortalToExportList(str, x);
+            //create object
+            var lat = portal._latlng.lat;
+            var lng = portal._latlng.lng;
+            var title = portal.options.data.title || "untitled portal";
+            var image = portal.options.data.image || "";
+            //add to portal list
+            if (typeof window.master_portal_list[portalGuid] == 'undefined') {
+                window.master_portal_list[portalGuid] = {lat:lat, lng: lng, title: title, image: image};
+                self.updateTotalScrapedCount()
+            }
         }
-        return obj;
-
     };
 
     self.checkPortals = function checkPortals(portals) {
-        var obj = {
-            list: [],
-            count: 0
-        };
-        for (var x in portals) {
-            if (typeof window.portals[x] !== "undefined") {
-                self.managePortals(obj, window.portals[x], x);
+        for (var portal in portals) {
+            if (typeof window.portals[portal] !== "undefined") {
+                self.managePortals(window.portals[portal], portal);
             }
         }
-        return obj;
     };
 
-    self.generateCsvData = function() {
-        var csvData = 'Name, Latitude, Longitude, Image' + "\n";
-        $.each(window.master_portal_list, function(key, value) {
-            csvData += (value + "\n");
+    self.escapeXml = function(unsafe) {
+        return unsafe.replace(/[<>&'"]/g, function (c) {
+            switch (c) {
+                case '<': return '&lt;';
+                case '>': return '&gt;';
+                case '&': return '&amp;';
+                case '\'': return '&apos;';
+                case '"': return '&quot;';
+            }
         });
+    }
 
-        return csvData;
-    };
-
-    self.downloadCSV = function() {
-        var csvData = self.generateCsvData();
+    self.downloadKML = function(file) {
+        var kmlData = '';
+        kmlData += '<?xml version="1.0" encoding="UTF-8"?>\r\n'
+        kmlData += '<kml xmlns="http://www.opengis.net/kml/2.2">\r\n'
+        kmlData += '  <Document>\r\n'
+        kmlData += '    <name>Layer Name Here</name>\r\n'
+        $.each(window.master_portal_list, function(key, value) {
+            kmlData += '    <Placemark>\r\n'
+            kmlData += '      <name>' + self.escapeXml(value.title) + '</name>\r\n'
+            kmlData += '      <ExtendedData>\r\n'
+            kmlData += '        <Data name="Latitude"><value>' + value.lat + '</value></Data>\r\n'
+            kmlData += '        <Data name="Longitude"><value>' + value.lng + '</value></Data>\r\n'
+            //kmlData += '        <Data name="Type"><value>Ingress Portal</value></Data>\r\n'
+            kmlData += '        <Data name="gx_media_links"><value>' + value.image + '</value></Data>\r\n'
+            kmlData += '      </ExtendedData>\r\n'
+            kmlData += '      <Point><coordinates>' + value.lng + ',' + value.lat + ',0</coordinates></Point>\r\n'
+            kmlData += '    </Placemark>\r\n'
+        });
+        kmlData += '  </Document>\r\n'
+        kmlData += '</kml>'
         var link = document.createElement("a");
-        link.download = 'Portal_Export.csv';
+        link.download = file;
+        link.href = "data:text/xml," + escape(kmlData);
+        link.click();
+    }
+
+    self.downloadCSV = function(file) {
+        var csvData = '"Name","Latitude","Longitude","Image"\r\n';
+        $.each(window.master_portal_list, function(key, value) {
+            csvData += '"' + value.title + '","' + value.lat + '","' + value.lng + '","' + value.image + '"\r\n';
+        });
+        var link = document.createElement("a");
+        link.download = file;
         link.href = "data:text/csv," + escape(csvData);
         link.click();
     }
 
-    self.showDialog = function showDialog(o) {
-        var csvData = self.generateCsvData();
-
+    self.showDialog = function showDialog() {
+        var dialogData = 'Name, Latitude, Longitude, Image\r\n';
+        $.each(window.master_portal_list, function(key, value) {
+            //not sure if these escapes are still needed here -zandarian
+            //var str = value.title.replace(/\"/g,"\\\"").replace(";"," ") + ", " + value.lat + ", " + value.lng + ", " + value.image;
+            var str = value.title + ", " + value.lat + ", " + value.lng + ", " + value.image;
+            if (window.plugin.keys && (typeof window.portals[key] !== "undefined")) {
+                var keyCount = window.plugin.keys.keys[key] || 0;
+                str = str + ";" + keyCount;
+            }
+            dialogData += (str + "\r\n");
+        });
         var data = `
         <form name='maxfield' action='#' method='post' target='_blank'>
             <div class="row">
                 <div id='form_area' class="column" style="float:left;width:100%;box-sizing: border-box;padding-right: 5px;">
-                    <textarea class='form_area'
-                        name='portal_list_area'
-                        rows='30'
-                        placeholder='Zoom level must be 15 or higher for portal data to load'
-                        style="width: 100%; white-space: nowrap;">${csvData}</textarea>
+                    <textarea class='form_area' name='portal_list_area' rows='30' placeholder='Placeholder' style="width: 100%; white-space: nowrap;">${dialogData}</textarea>
                 </div>
             </div>
         </form>
         `;
-
-        var dia = window.dialog({
-            title: "Portal CSV Export",
+        var dialog = window.dialog({
+            title: "Portal Data",
             html: data
         }).parent();
-        $(".ui-dialog-buttonpane", dia).remove();
-        dia.css("width", "600px").css("top", ($(window).height() - dia.height()) / 2).css("left", ($(window).width() - dia.width()) / 2);
-        return dia;
-    };
-
-    self.gen = function gen() {
-        var dialog = self.showDialog(window.master_portal_list);
+        $(".ui-dialog-buttonpane", dialog).remove();
+        dialog.css("width", "600px").css("top", ($(window).height() - dialog.height()) / 2).css("left", ($(window).width() - dialog.width()) / 2);
         return dialog;
     };
 
@@ -240,7 +238,7 @@ function wrapper() {
                         $('#scraperStatus').html('Area Scraped').css('color', 'green');
                     }
                 } else {
-                    current_area_scraped = false;
+                    window.current_area_scraped = false;
                     $('#scraperStatus').html('Waiting For Map Data').css('color', 'yellow');
                 }
             }
@@ -258,14 +256,14 @@ function wrapper() {
             $('#scraperStatus').html('Stopped').css('color', 'red');
             $('#startScraper').show();
             $('#stopScraper').hide();
-            $('#csvControlsBox').hide();
+            $('#dataControlsBox').hide();
             $('#totalPortals').hide();
         } else {
             window.portal_scraper_enabled = true;
             $('#scraperStatus').html('Running').css('color', 'green');
             $('#startScraper').hide();
             $('#stopScraper').show();
-            $('#csvControlsBox').show();
+            $('#dataControlsBox').show();
             $('#totalPortals').show();
             self.updateTotalScrapedCount();
         }
@@ -277,30 +275,30 @@ function wrapper() {
         // add controls to toolbox
         var link = $("");
         $("#toolbox").append(link);
-
-        var csvToolbox = `
-        <div id="csvToolbox" style="position: relative;">
-            <p style="margin: 5px 0 5px 0; text-align: center; font-weight: bold;">Portal CSV Exporter</p>
-            <a id="startScraper" style="position: absolute; top: 0; left: 0; margin: 0 5px 0 5px;" onclick="window.plugin.portal_csv_export.toggleStatus();" title="Start the portal data scraper">Start</a>
-            <a id="stopScraper" style="position: absolute; top: 0; left: 0; display: none; margin: 0 5px 0 5px;" onclick="window.plugin.portal_csv_export.toggleStatus();" title="Stop the portal data scraper">Stop</a>
+        var dataToolbox = `
+        <div id="dataToolbox" style="position: relative;">
+            <p style="margin: 5px 0 5px 0; text-align: center; font-weight: bold;">Portal Exporter</p>
+            <a id="startScraper" style="position: absolute; top: 0; left: 0; margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.toggleStatus();" title="Start the portal data scraper">Start</a>
+            <a id="stopScraper" style="position: absolute; top: 0; left: 0; display: none; margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.toggleStatus();" title="Stop the portal data scraper">Stop</a>
 
             <div class="zoomControlsBox" style="margin-top: 5px; padding: 5px 0 5px 5px;">
                 Current Zoom Level: <span id="currentZoomLevel">0</span>
-                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_csv_export.setZoomLevel();" title="Set zoom level to enable portal data download.">Set Zoom Level</a>
+                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.setZoomLevel();" title="Set zoom level to enable portal data download.">Set Zoom Level</a>
             </div>
 
             <p style="margin:0 0 0 5px;">Scraper Status: <span style="color: red;" id="scraperStatus">Stopped</span></p>
             <p id="totalPortals" style="display: none; margin:0 0 0 5px;">Total Portals Scraped: <span id="totalScrapedPortals">0</span></p>
 
-            <div id="csvControlsBox" style="display: none; margin-top: 5px; padding: 5px 0 5px 5px; border-top: 1px solid #20A8B1;">
-                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_csv_export.gen();" title="View the CSV portal data.">View Data</a>
-                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_csv_export.downloadCSV();" title="Download the CSV portal data.">Download CSV</a>
+            <div id="dataControlsBox" style="display: none; margin-top: 5px; padding: 5px 0 5px 5px; border-top: 1px solid #20A8B1;">
+                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.showDialog();" title="View Portal Data">View Data</a>
+                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.downloadCSV('Portals.csv');" title="Download Portals.csv">Get CSV</a>
+                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.downloadKML('Portals.kml');" title="Download Portals.kml">Get KML</a>
+                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.downloadKML('Portals.xml');" title="Download Portals.xml">Get XML</a>
             </div>
         </div>
         `;
-
-        $(csvToolbox).insertAfter('#toolbox');
-
+        $(dataToolbox).insertAfter('#toolbox');
+        // run
         window.csvUpdateTimer = window.setInterval(self.updateTimer, 500);
 
         // delete self to ensure init can't be run again
