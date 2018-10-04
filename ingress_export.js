@@ -2,7 +2,7 @@
 // @id iitc-plugin-ingressportalcsvexport@zetaphor
 // @name IITC Plugin: Ingress Portal Exporter
 // @category Information
-// @version 0.0.2
+// @version 0.0.3
 // @namespace http://github.com/Zetaphor/IITC-Ingress-Portal-CSV-Export
 // @updateURL http://github.com/Zetaphor/IITC-Ingress-Portal-CSV-Export/raw/master/ingress_export.js
 // @downloadURL http://github.com/Zetaphor/IITC-Ingress-Portal-CSV-Export/raw/master/ingress_export.js
@@ -114,7 +114,7 @@ function wrapper() {
             var image = portal.options.data.image || "";
             //add to portal list
             if (typeof window.master_portal_list[portalGuid] == 'undefined') {
-                window.master_portal_list[portalGuid] = {lat:lat, lng: lng, title: title, image: image};
+                window.master_portal_list[portalGuid] = {guid: portalGuid, lat:lat, lng: lng, title: title, image: image};
                 self.updateTotalScrapedCount()
             }
         }
@@ -145,15 +145,13 @@ function wrapper() {
         kmlData += '<?xml version="1.0" encoding="UTF-8"?>\r\n'
         kmlData += '<kml xmlns="http://www.opengis.net/kml/2.2">\r\n'
         kmlData += '  <Document>\r\n'
-        kmlData += '    <name>Layer Name Here</name>\r\n'
+        kmlData += '    <name>Portals</name>\r\n'
         $.each(window.master_portal_list, function(key, value) {
             kmlData += '    <Placemark>\r\n'
             kmlData += '      <name>' + self.escapeXml(value.title) + '</name>\r\n'
+            kmlData += '      <description><![CDATA[<img src="' + value.image + '" height="200" width="auto" />]]></description>\r\n'
             kmlData += '      <ExtendedData>\r\n'
-            kmlData += '        <Data name="Latitude"><value>' + value.lat + '</value></Data>\r\n'
-            kmlData += '        <Data name="Longitude"><value>' + value.lng + '</value></Data>\r\n'
-            //kmlData += '        <Data name="Type"><value>Ingress Portal</value></Data>\r\n'
-            kmlData += '        <Data name="gx_media_links"><value>' + value.image + '</value></Data>\r\n'
+            kmlData += '        <Data name="directions"><value>https://www.google.com/maps/dir//' + value.lat + ',' + value.lng + '></value></Data>\r\n'
             kmlData += '      </ExtendedData>\r\n'
             kmlData += '      <Point><coordinates>' + value.lng + ',' + value.lat + ',0</coordinates></Point>\r\n'
             kmlData += '    </Placemark>\r\n'
@@ -162,14 +160,15 @@ function wrapper() {
         kmlData += '</kml>'
         var link = document.createElement("a");
         link.download = file;
-        link.href = "data:text/xml," + escape(kmlData);
+        link.href = "data:text/xml," + kmlData;
+        //link.href = "data:text/xml," + escape(kmlData);
         link.click();
     }
 
     self.downloadCSV = function(file) {
-        var csvData = '"Name","Latitude","Longitude","Image"\r\n';
+        var csvData = '"id","name","latitude","longitude","image"\r\n';
         $.each(window.master_portal_list, function(key, value) {
-            csvData += '"' + value.title + '","' + value.lat + '","' + value.lng + '","' + value.image + '"\r\n';
+            csvData += '"' + value.guid + '","' + value.title + '","' + value.lat + '","' + value.lng + '","' + value.image + '"\r\n';
         });
         var link = document.createElement("a");
         link.download = file;
@@ -291,9 +290,9 @@ function wrapper() {
 
             <div id="dataControlsBox" style="display: none; margin-top: 5px; padding: 5px 0 5px 5px; border-top: 1px solid #20A8B1;">
                 <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.showDialog();" title="View Portal Data">View Data</a>
-                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.downloadCSV('Portals.csv');" title="Download Portals.csv">Get CSV</a>
-                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.downloadKML('Portals.kml');" title="Download Portals.kml">Get KML</a>
-                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.downloadKML('Portals.xml');" title="Download Portals.xml">Get XML</a>
+                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.downloadCSV('iitc-portals.csv');" title="Download iitc-portals.csv">Get CSV</a>
+                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.downloadKML('iitc-portals.kml');" title="Download iitc-portals.kml">Get KML</a>
+                <a style="margin: 0 5px 0 5px;" onclick="window.plugin.portal_export.downloadKML('iitc-portals.xml');" title="Download iitc-portals.xml">Get XML</a>
             </div>
         </div>
         `;
