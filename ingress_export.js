@@ -2,7 +2,7 @@
 // @id iitc-plugin-ingressportalcsvexport@zetaphor
 // @name IITC Plugin: Ingress Portal Exporter
 // @category Information
-// @version 0.0.3
+// @version 0.0.4
 // @namespace http://github.com/zandarian/IITC-Ingress-Portal-CSV-Export
 // @updateURL http://github.com/zandarian/IITC-Ingress-Portal-CSV-Export/raw/master/ingress_export.js
 // @downloadURL http://github.com/zandarian/IITC-Ingress-Portal-CSV-Export/raw/master/ingress_export.js
